@@ -6,7 +6,9 @@ import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.ReadableMapKeySetIterator;
 import com.segment.analytics.Analytics;
 import com.segment.analytics.Properties;
 import com.segment.analytics.Traits;
@@ -28,6 +30,8 @@ import com.segment.analytics.android.integrations.quantcast.QuantcastIntegration
 import com.segment.analytics.android.integrations.tapstream.TapstreamIntegration;
 import com.segment.analytics.android.integrations.branch.BranchIntegration;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -178,12 +182,86 @@ public class SegmentModule extends ReactContextBaseJavaModule {
         }
     }
 
+    /**
+     * Adds the toHashMap function
+     * 
+     * @param properties a ReadableMap
+     * @return a new HashMap containing the properties from the ReadableMap
+     */
+    private HashMap<String, Object> toHashMap(@Nullable ReadableMap properties) {
+        ReadableMapKeySetIterator iterator = properties.keySetIterator();
+        HashMap<String, Object> hashMap = new HashMap<>();
+
+        while (iterator.hasNextKey()) {
+            String key = iterator.nextKey();
+            switch (properties.getType(key)) {
+            case Null:
+                hashMap.put(key, null);
+                break;
+            case Boolean:
+                hashMap.put(key, properties.getBoolean(key));
+                break;
+            case Number:
+                hashMap.put(key, properties.getDouble(key));
+                break;
+            case String:
+                hashMap.put(key, properties.getString(key));
+                break;
+            case Map:
+                hashMap.put(key, toHashMap(properties.getMap(key)));
+                break;
+            case Array:
+                hashMap.put(key, toArrayList(properties.getArray(key)));
+                break;
+            default:
+                throw new IllegalArgumentException("Could not convert object with key: " + key + ".");
+            }
+        }
+        return hashMap;
+    }
+
+    /**
+     * Adds the toArrayList function
+     * 
+     * @param array a ReadableArray
+     * @return a new ArrayList containing the properties from the ReadableArray
+     */
+    private ArrayList<Object> toArrayList(ReadableArray array) {
+        ArrayList<Object> arrayList = new ArrayList<>();
+    
+        for (int i = 0; i < array.size(); i++) {
+          switch (array.getType(i)) {
+            case Null:
+              arrayList.add(null);
+              break;
+            case Boolean:
+              arrayList.add(array.getBoolean(i));
+              break;
+            case Number:
+              arrayList.add(array.getDouble(i));
+              break;
+            case String:
+              arrayList.add(array.getString(i));
+              break;
+            case Map:
+              arrayList.add(toHashMap(array.getMap(i)));
+              break;
+            case Array:
+              arrayList.add(toArrayList(array.getArray(i)));
+              break;
+            default:
+              throw new IllegalArgumentException("Could not convert object at index: " + i + ".");
+          }
+        }
+        return arrayList;
+      }
+
     @ReactMethod
     public void identify(@Nullable String userId, @Nullable ReadableMap properties) {
         Traits traits = new Traits();
 
         if (properties != null) {
-            traits.putAll(properties.toHashMap());
+            traits.putAll(toHashMap(properties));
         }
 
         Analytics.with(getReactApplicationContext()).identify(userId, traits, null);
@@ -194,7 +272,7 @@ public class SegmentModule extends ReactContextBaseJavaModule {
         Properties segmentProperties = new Properties();
 
         if (properties != null) {
-            segmentProperties.putAll(properties.toHashMap());
+            segmentProperties.putAll(toHashMap(properties));
         }
 
         Analytics.with(getReactApplicationContext()).track(event, segmentProperties);
@@ -205,7 +283,7 @@ public class SegmentModule extends ReactContextBaseJavaModule {
         Properties segmentProperties = new Properties();
 
         if (properties != null) {
-            segmentProperties.putAll(properties.toHashMap());
+            segmentProperties.putAll(toHashMap(properties));
         }
 
         Analytics.with(getReactApplicationContext()).screen("", name, segmentProperties);
@@ -216,7 +294,7 @@ public class SegmentModule extends ReactContextBaseJavaModule {
         Traits traits = new Traits();
 
         if (properties != null) {
-            traits.putAll(properties.toHashMap());
+            traits.putAll(toHashMap(properties));
         }
 
         Analytics.with(getReactApplicationContext()).group(groupId, traits, null);
